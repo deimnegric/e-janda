@@ -62,7 +62,9 @@ input,select,textarea{background:var(--card);border:1px solid var(--line);border
 /* not editörü */
 .head{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}
 .head input.t{font-size:20px;font-weight:700;flex:1;min-width:200px}
-.head select{width:auto}
+.head{align-items:center;flex-wrap:nowrap}
+.head button{border:none;background:none;padding:2px 8px;color:var(--mut);visibility:hidden}
+.head.act button{visibility:visible}
 .block{position:relative;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px;margin-bottom:12px}
 .tools{display:flex;gap:4px;justify-content:flex-end;margin-bottom:6px}
 .tools button{padding:1px 8px;font-size:13px}
@@ -238,7 +240,7 @@ onAuthStateChanged(auth, user => {
   unsubs.forEach(u => u()); unsubs = [];
   if (!user) { uid = null; $('#app').hidden = true; $('#login').hidden = false; $('#lpass').value = ''; return; }
   uid = user.uid; $('#login').hidden = true; $('#app').hidden = false;
-  cur = null; blocks = []; seeded = false; showEmpty(); showEditor(false);
+  cur = null; blocks = []; seeded = false; showEmpty(); showEditor(false); history.replaceState(null, '');
   unsubs.push(onSnapshot(query(collection(db, 'users', uid, 'folders'), orderBy('createdAt')), s => {
     folders = s.docs.map(d => ({ id: d.id, ...d.data() }));
     if (!folders.length && !seeded) { seeded = true; addDoc(collection(db, 'users', uid, 'folders'), { name: 'genel', createdAt: Date.now() }); }
@@ -258,7 +260,18 @@ const bCol = id => collection(db, 'users', uid, 'entries', id, 'blocks');
 const bDoc = (eid, bid) => doc(db, 'users', uid, 'entries', eid, 'blocks', bid);
 
 function showEditor(on) { $('#app').classList.toggle('edit', on); }
-$('#back').onclick = () => showEditor(false);
+
+/* geri tuşu: not ve arama ekranları geçmişe işlenir, geri basınca bir önceki ekrana döner */
+const hv = () => (history.state && history.state.v) || null;
+function goHome() { if (hv() === 'edit') history.back(); else showEditor(false); }
+$('#back').onclick = goHome;
+history.replaceState(null, '');
+window.addEventListener('popstate', () => {
+  const v = hv();
+  $('#search').hidden = v !== 'search';
+  if (v === 'edit') showEditor(true);
+  else if (!v) showEditor(false);
+});
 
 /* ---------- yeni klasör (sol üst) ---------- */
 let addingFolder = false;
@@ -342,7 +355,7 @@ async function delFolder(f, list) {
 async function removeEntry(id) {
   const s = await getDocs(bCol(id));
   const b = writeBatch(db); s.docs.forEach(d => b.delete(d.ref)); b.delete(eDoc(id)); await b.commit();
-  if (cur && cur.id === id) { cur = null; showEmpty(); showEditor(false); }
+  if (cur && cur.id === id) { cur = null; showEmpty(); goHome(); }
 }
 
 /* ---------- zengin yazı: sadece renk ---------- */
@@ -443,6 +456,7 @@ function showEmpty() { $('#main').replaceChildren(h('div', { class: 'empty' }, '
 async function openEntry(id) {
   cur = entries.find(e => e.id === id); if (!cur) return;
   showEditor(true);
+  if (hv() !== 'edit') history.pushState({ v: 'edit' }, '');
   const s = await getDocs(query(bCol(id), orderBy('order')));
   blocks = s.docs.map(d => ({ id: d.id, ...d.data() }));
   renderEditor(); renderTree();
@@ -452,10 +466,22 @@ function renderEditor() {
   tb.hidden = true;
   const m = $('#main'); m.replaceChildren();
   const title = h('input', { class: 't', value: cur.title || '', placeholder: 'başlık' });
-  title.oninput = debounce(() => updateDoc(eDoc(cur.id), { title: lc(title.value.trim()) || 'başlıksız' }), 500);
-  const sel = h('select', { title: 'klasör' }, folders.map(f => h('option', { value: f.id, selected: f.id === cur.folderId }, f.name)));
-  sel.onchange = () => updateDoc(eDoc(cur.id), { folderId: sel.value });
-  m.append(h('div', { class: 'head' }, title, sel, h('button', { onclick: async () => { if (confirm('bu not silinsin mi?')) removeEntry(cur.id); } }, '🗑 notu sil')));
+  const saveTitle = () => {
+    const v = lc(title.value.trim()) || 'başlıksız';
+    if (v !== cur.title) { cur.title = v; updateDoc(eDoc(cur.id), { title: v }); }
+  };
+  title.oninput = debounce(saveTitle, 500);
+  // başlığa tıklayınca sil ikonu çıkar, boş yere tıklayınca kaydolur ve ikon gizlenir
+  const del = h('button', { title: 'notu sil', onclick: () => { if (confirm('bu not silinsin mi?')) removeEntry(cur.id); } }, '🗑');
+  del.addEventListener('mousedown', e => e.preventDefault());
+  const head = h('div', { class: 'head' }, title, del);
+  head.addEventListener('focusin', () => head.classList.add('act'));
+  head.addEventListener('focusout', e => {
+    if (head.contains(e.relatedTarget)) return;
+    saveTitle();
+    setTimeout(() => { if (!head.contains(document.activeElement)) head.classList.remove('act'); }, 200);
+  });
+  m.append(head);
 
   blocks.forEach((b, i) => m.append(renderBlock(b, i)));
 
@@ -484,8 +510,13 @@ function renderBlock(b, i) {
   if (b.type === 'text') {
     const ed = rich('yaz…');
     loadRich(ed, b.html, b.value);
-    const save = debounce(() => { const r = readRich(ed); b.html = r.html; b.value = r.value; updateDoc(bDoc(cur.id, b.id), { html: r.html, value: r.value }); }, 600);
-    ed.addEventListener('input', save);
+    const saveNow = () => {
+      const r = readRich(ed);
+      if (r.html === (b.html || '') && r.value === (b.value || '')) return;
+      b.html = r.html; b.value = r.value; updateDoc(bDoc(cur.id, b.id), { html: r.html, value: r.value });
+    };
+    ed.addEventListener('input', debounce(saveNow, 600));
+    ed.addEventListener('blur', saveNow);
     w.append(ed);
   } else if (b.type === 'image') {
     w.append(h('img', { src: b.data }));
@@ -493,7 +524,9 @@ function renderBlock(b, i) {
     b.items = b.items || [];
     const list = h('div', { class: 'tl' });
     const persist = async () => { await updateDoc(bDoc(cur.id, b.id), { items: b.items }); syncStats(); };
-    const persistSoon = debounce(persist, 500);
+    let dirty = false;
+    const persistSoon = debounce(() => { dirty = false; persist(); }, 500);
+    const flush = () => { if (dirty) { dirty = false; persist(); } };
     const draw = focusIdx => {
       list.replaceChildren();
       b.items.forEach((it, k) => {
@@ -501,7 +534,8 @@ function renderBlock(b, i) {
         const ed = rich('görev…', true); ed.classList.add('tt'); if (it.d) ed.classList.add('done');
         loadRich(ed, it.h, it.t);
         cb.onchange = () => { it.d = cb.checked; ed.classList.toggle('done', it.d); persist(); };
-        ed.addEventListener('input', () => { const r = readRich(ed); it.t = r.value; it.h = r.html; persistSoon(); });
+        ed.addEventListener('input', () => { const r = readRich(ed); it.t = r.value; it.h = r.html; dirty = true; persistSoon(); });
+        ed.addEventListener('blur', flush);
         ed.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); b.items.splice(k + 1, 0, { t: '', h: '', d: false }); draw(k + 1); } });
         const x = h('button', { class: 'xb', title: 'görevi sil', onclick: () => { b.items.splice(k, 1); draw(); persist(); } }, '✕');
         x.addEventListener('mousedown', e => e.preventDefault());
@@ -721,7 +755,10 @@ async function buildIndex() {
   return out;
 }
 
+let searchBase = null;
+function closeSearch() { if (hv() === 'search') history.back(); else $('#search').hidden = true; }
 async function openSearch() {
+  searchBase = hv(); history.pushState({ v: 'search' }, '');
   $('#search').hidden = false; $('#q').value = ''; $('#q').focus();
   sBusy = true; runSearch();
   try { sIdx = await buildIndex(); } finally { sBusy = false; }
@@ -754,15 +791,16 @@ function runSearch() {
   if (items.length > 80) box.append(note(`+${items.length - 80} sonuç daha, aramayı daralt.`));
 }
 function gotoResult(x) {
+  if (x.kind === 'klasör') { closeSearch(); openF.add(x.fid); renderTree(); return; }
   $('#search').hidden = true;
-  if (x.kind === 'klasör') { openF.add(x.fid); showEditor(false); renderTree(); return; }
+  if (hv() === 'search') history.replaceState({ v: 'edit' }, '');
   const e = entries.find(en => en.id === x.eid);
   if (e) { openF.add(e.folderId); openEntry(e.id); }
 }
 $('#sbtn').onclick = openSearch;
-$('#sx').onclick = () => { $('#search').hidden = true; };
+$('#sx').onclick = closeSearch;
 $('#q').oninput = runSearch;
-document.addEventListener('keydown', e => { if (e.key === 'Escape') $('#search').hidden = true; });
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('#search').hidden) closeSearch(); });
 </script>
 </body>
 </html>
