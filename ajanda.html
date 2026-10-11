@@ -1,0 +1,387 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Ajandam</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Google+Sans+Code:ital,wght@0,300..800;1,300..800&display=swap" rel="stylesheet">
+<style>
+:root{color-scheme:dark;--bg:#000;--card:#101010;--tx:#fff;--mut:#9a9a9a;--line:#2b2b2b;--acc:#3b82f6;--ok:#2ecc71;--red:#ff4d4d;--danger:#ff4d4d}
+select option{background:#101010;color:#fff}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.5 "Google Sans Code",ui-monospace,Menlo,Consolas,monospace;background:var(--bg);color:var(--tx)}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer;background:var(--card);border:1px solid var(--line);border-radius:8px;padding:6px 10px}
+button:hover{border-color:var(--acc)}
+button.pri{background:var(--acc);color:#fff;border-color:var(--acc)}
+input,select,textarea{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:8px 10px;width:100%}
+[hidden]{display:none!important}
+
+#login{min-height:100vh;display:grid;place-items:center;padding:16px}
+.lbox{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:24px;width:100%;max-width:360px;display:grid;gap:10px}
+.lbox h1{margin:0 0 4px;font-size:22px}
+#lmsg{color:var(--danger);font-size:13px;min-height:18px}
+.link{background:none;border:none;color:var(--acc);padding:0;text-align:left}
+
+#app{display:grid;grid-template-columns:290px 1fr;height:100vh}
+.side{background:var(--card);border-right:1px solid var(--line);overflow:auto;padding:12px;display:flex;flex-direction:column;gap:8px}
+.side .top{display:flex;gap:6px;align-items:center;justify-content:space-between}
+.folder{border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.fh{display:flex;align-items:center;gap:4px;padding:6px 8px;background:var(--bg)}
+.fh .nm{cursor:pointer;font-weight:400;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fh .nm.on{font-weight:800}
+.fh .nm.red,.ent.red{color:var(--red)}
+.fh .nm.green,.ent.green{color:var(--ok)}
+.fh .sp{flex:1}
+.fh .pen{padding:0 4px;color:var(--mut)}
+.fh .rn{padding:2px 6px;font-weight:800}
+.ti{display:flex;align-items:center;gap:8px;margin-bottom:4px}
+.ti input[type=checkbox]{width:20px;height:20px;flex:none;accent-color:var(--ok)}
+.ti .tt{border:none;background:transparent;padding:4px}
+.ti .tt:focus{outline:none;background:var(--bg)}
+.ti .tt.done{text-decoration:line-through;color:var(--mut)}
+.ti button{border:none;background:none;padding:2px 6px;color:var(--mut)}
+.fh button{padding:2px 6px;border:none;background:none}
+.ent{padding:6px 10px 6px 22px;cursor:pointer;border-top:1px solid var(--line);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ent:hover{background:var(--bg)}
+.ent.on{background:color-mix(in srgb,var(--acc) 15%,transparent);font-weight:600}
+.main{overflow:auto;padding:16px;min-width:0}
+.bar{display:none;padding:8px 12px;background:var(--card);border-bottom:1px solid var(--line)}
+.empty{color:var(--mut);margin-top:30vh;text-align:center}
+.head{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}
+.head input.t{font-size:20px;font-weight:700;flex:1;min-width:200px}
+.head select{width:auto}
+.block{position:relative;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px;margin-bottom:12px}
+.tools{display:flex;gap:4px;justify-content:flex-end;margin-bottom:6px}
+.tools button{padding:1px 8px;font-size:13px}
+.block textarea{border:none;padding:0;resize:none;overflow:hidden;min-height:60px;background:transparent}
+.block textarea:focus{outline:none}
+.block img{max-width:100%;border-radius:8px;display:block}
+.xl{resize:both;overflow:auto;max-width:100%;min-width:140px;min-height:90px;height:260px;border:1px solid var(--line);border-radius:8px}
+.xl table{border-collapse:collapse;font-size:13px;white-space:nowrap}
+.xl td{border:1px solid var(--line);padding:3px 8px}
+.xl tr:first-child td{position:sticky;top:0;background:var(--card);font-weight:600}
+.add{display:flex;gap:8px;flex-wrap:wrap;margin:16px 0 60px}
+
+@media(max-width:800px){
+  #app{grid-template-columns:1fr;grid-template-rows:auto 1fr}
+  .bar{display:block}
+  .side{position:fixed;inset:0 20% 0 0;z-index:5;transform:translateX(-105%);transition:.2s;box-shadow:2px 0 14px #0004}
+  .side.open{transform:none}
+}
+</style>
+</head>
+<body>
+
+<div id="login">
+  <form class="lbox" id="lform">
+    <h1>📒 Ajandam</h1>
+    <input id="lmail" type="email" placeholder="E-posta" autocomplete="username" required>
+    <input id="lpass" type="password" placeholder="Şifre" autocomplete="current-password" minlength="6" required>
+    <button class="pri" id="lgo">Giriş yap</button>
+    <button type="button" class="link" id="lswitch">İlk kez mi? Hesap oluştur</button>
+    <button type="button" class="link" id="lreset">Şifremi unuttum</button>
+    <div id="lmsg"></div>
+  </form>
+</div>
+
+<div id="app" hidden>
+  <aside class="side" id="side">
+    <div class="top">
+      <b>📁 Klasörler</b>
+      <span><button id="newFolder">+ Klasör</button> <button id="logout" title="Çıkış">⎋</button></span>
+    </div>
+    <div id="tree"></div>
+  </aside>
+  <div style="display:flex;flex-direction:column;min-width:0;height:100vh">
+    <div class="bar"><button id="menu">☰ Klasörler</button></div>
+    <main class="main" id="main"><div class="empty">Soldan bir not seç ya da yeni not ekle.</div></main>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
+import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
+import { getFirestore, collection, doc, addDoc, updateDoc, deleteDoc, getDocs, onSnapshot, query, orderBy, writeBatch } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
+
+/* ====== 1) Firebase ayarların buraya ====== */
+const firebaseConfig = {
+  apiKey: "BURAYA",
+  authDomain: "BURAYA.firebaseapp.com",
+  projectId: "BURAYA",
+  appId: "BURAYA"
+};
+/* ========================================== */
+
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+
+const $ = s => document.querySelector(s);
+const h = (tag, props = {}, ...kids) => {
+  const e = document.createElement(tag);
+  for (const [k, v] of Object.entries(props)) {
+    if (k === 'class') e.className = v;
+    else if (k.startsWith('on')) e.addEventListener(k.slice(2), v);
+    else e[k] = v;
+  }
+  kids.flat().filter(x => x != null && x !== false).forEach(c => e.append(c));
+  return e;
+};
+const debounce = (fn, ms = 600) => { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; };
+
+let uid = null, folders = [], entries = [], openF = new Set(), cur = null, blocks = [], unsubs = [], seeded = false;
+
+/* ---------- Giriş ---------- */
+let signup = false;
+$('#lswitch').onclick = () => {
+  signup = !signup;
+  $('#lgo').textContent = signup ? 'Hesap oluştur' : 'Giriş yap';
+  $('#lswitch').textContent = signup ? 'Zaten hesabım var' : 'İlk kez mi? Hesap oluştur';
+  $('#lpass').autocomplete = signup ? 'new-password' : 'current-password';
+};
+$('#lreset').onclick = async () => {
+  const m = $('#lmail').value.trim();
+  if (!m) return msg('Önce e-posta yaz.');
+  try { await sendPasswordResetEmail(auth, m); msg('Sıfırlama bağlantısı e-postana gönderildi.', true); } catch (e) { msg(err(e)); }
+};
+$('#lform').onsubmit = async ev => {
+  ev.preventDefault(); msg('');
+  const m = $('#lmail').value.trim(), p = $('#lpass').value;
+  try { signup ? await createUserWithEmailAndPassword(auth, m, p) : await signInWithEmailAndPassword(auth, m, p); }
+  catch (e) { msg(err(e)); }
+};
+function msg(t, ok) { const x = $('#lmsg'); x.textContent = t; x.style.color = ok ? 'var(--ok)' : 'var(--danger)'; }
+function err(e) {
+  const c = e.code || '';
+  if (c.includes('invalid-credential') || c.includes('wrong-password') || c.includes('user-not-found')) return 'E-posta veya şifre hatalı.';
+  if (c.includes('email-already')) return 'Bu e-posta zaten kayıtlı.';
+  if (c.includes('weak-password')) return 'Şifre en az 6 karakter olmalı.';
+  if (c.includes('too-many')) return 'Çok fazla deneme. Biraz bekle.';
+  return e.message;
+}
+$('#logout').onclick = () => signOut(auth);
+
+onAuthStateChanged(auth, user => {
+  unsubs.forEach(u => u()); unsubs = [];
+  if (!user) { uid = null; $('#app').hidden = true; $('#login').hidden = false; $('#lpass').value = ''; return; }
+  uid = user.uid; $('#login').hidden = true; $('#app').hidden = false;
+  cur = null; blocks = []; seeded = false; showEmpty();
+  const base = collection(db, 'users', uid);
+  unsubs.push(onSnapshot(query(collection(db, 'users', uid, 'folders'), orderBy('createdAt')), s => {
+    folders = s.docs.map(d => ({ id: d.id, ...d.data() }));
+    if (!folders.length && !seeded) { seeded = true; addDoc(collection(db, 'users', uid, 'folders'), { name: 'Genel', createdAt: Date.now() }); }
+    renderTree();
+  }, e => alert('Veri okunamadı: ' + e.message)));
+  unsubs.push(onSnapshot(query(collection(db, 'users', uid, 'entries'), orderBy('createdAt', 'desc')), s => {
+    entries = s.docs.map(d => ({ id: d.id, ...d.data() }));
+    renderTree();
+  }));
+});
+
+/* ---------- Referanslar ---------- */
+const fCol = () => collection(db, 'users', uid, 'folders');
+const eCol = () => collection(db, 'users', uid, 'entries');
+const eDoc = id => doc(db, 'users', uid, 'entries', id);
+const bCol = id => collection(db, 'users', uid, 'entries', id, 'blocks');
+const bDoc = (eid, bid) => doc(db, 'users', uid, 'entries', eid, 'blocks', bid);
+
+/* ---------- Klasör ağacı ---------- */
+let renaming = null;
+$('#menu').onclick = () => $('#side').classList.toggle('open');
+$('#newFolder').onclick = async () => {
+  const name = prompt('Klasör adı:'); if (!name) return;
+  const r = await addDoc(fCol(), { name: name.trim(), createdAt: Date.now() }); openF.add(r.id);
+};
+
+function renderTree() {
+  const t = $('#tree'); t.replaceChildren();
+  folders.forEach(f => {
+    const list = entries.filter(e => e.folderId === f.id);
+    const isOpen = openF.has(f.id);
+    const tot = list.reduce((a, e) => a + (e.tTotal || 0), 0), dn = list.reduce((a, e) => a + (e.tDone || 0), 0);
+    const col = tot ? (dn < tot ? ' red' : ' green') : '';
+    let nameEl;
+    if (renaming === f.id) {
+      nameEl = h('input', { class: 'rn', value: f.name });
+      const fin = async ok => {
+        if (renaming !== f.id) return;
+        renaming = null;
+        const n = nameEl.value.trim();
+        if (ok && n && n !== f.name) await updateDoc(doc(db, 'users', uid, 'folders', f.id), { name: n });
+        else renderTree();
+      };
+      nameEl.onkeydown = e => { if (e.key === 'Enter') fin(true); if (e.key === 'Escape') fin(false); };
+      nameEl.onblur = () => fin(true);
+      setTimeout(() => { nameEl.focus(); nameEl.select(); }, 0);
+    } else {
+      nameEl = h('span', { class: 'nm' + (isOpen ? ' on' : '') + col, onclick: () => { isOpen ? openF.delete(f.id) : openF.add(f.id); renderTree(); } },
+        (isOpen ? '▾ ' : '▸ ') + f.name + (tot ? ` (${dn}/${tot})` : ''));
+    }
+    const head = h('div', { class: 'fh' },
+      nameEl,
+      isOpen && renaming !== f.id ? h('button', { class: 'pen', title: 'Adı değiştir', onclick: () => { renaming = f.id; renderTree(); } }, '✎') : null,
+      h('span', { class: 'sp' }),
+      h('button', { title: 'Yeni not', onclick: () => newEntry(f.id) }, '＋'),
+      h('button', { title: 'Sil', onclick: () => delFolder(f, list) }, '🗑'));
+    const box = h('div', { class: 'folder' }, head);
+    if (isOpen) list.forEach(e => {
+      const c = e.tTotal ? (e.tDone < e.tTotal ? ' red' : ' green') : '';
+      box.append(h('div', { class: 'ent' + (cur && cur.id === e.id ? ' on' : '') + c, onclick: () => openEntry(e.id) },
+        (e.title || 'Başlıksız') + (e.tTotal ? ` (${e.tDone || 0}/${e.tTotal})` : '')));
+    });
+    t.append(box);
+  });
+}
+
+async function newEntry(folderId) {
+  const r = await addDoc(eCol(), { folderId, title: 'Yeni not', createdAt: Date.now() });
+  openF.add(folderId); openEntry(r.id);
+}
+async function delFolder(f, list) {
+  if (!confirm(`"${f.name}" klasörü ve içindeki ${list.length} not silinsin mi?`)) return;
+  for (const e of list) await removeEntry(e.id);
+  await deleteDoc(doc(db, 'users', uid, 'folders', f.id));
+}
+async function removeEntry(id) {
+  const s = await getDocs(bCol(id));
+  const b = writeBatch(db); s.docs.forEach(d => b.delete(d.ref)); b.delete(eDoc(id)); await b.commit();
+  if (cur && cur.id === id) { cur = null; showEmpty(); }
+}
+
+/* ---------- Not editörü ---------- */
+function showEmpty() { $('#main').replaceChildren(h('div', { class: 'empty' }, 'Soldan bir not seç ya da yeni not ekle.')); }
+
+async function openEntry(id) {
+  $('#side').classList.remove('open');
+  cur = entries.find(e => e.id === id); if (!cur) return;
+  const s = await getDocs(query(bCol(id), orderBy('order')));
+  blocks = s.docs.map(d => ({ id: d.id, ...d.data() }));
+  renderEditor(); renderTree();
+}
+
+function renderEditor() {
+  const m = $('#main'); m.replaceChildren();
+  const title = h('input', { class: 't', value: cur.title || '', placeholder: 'Başlık' });
+  title.oninput = debounce(() => updateDoc(eDoc(cur.id), { title: title.value.trim() || 'Başlıksız' }), 500);
+  const sel = h('select', { title: 'Klasör' }, folders.map(f => h('option', { value: f.id, selected: f.id === cur.folderId }, f.name)));
+  sel.onchange = () => updateDoc(eDoc(cur.id), { folderId: sel.value });
+  m.append(h('div', { class: 'head' }, title, sel, h('button', { onclick: async () => { if (confirm('Bu not silinsin mi?')) removeEntry(cur.id); } }, '🗑 Notu sil')));
+
+  blocks.forEach((b, i) => m.append(renderBlock(b, i)));
+
+  const fi = h('input', { type: 'file', accept: 'image/*', hidden: true, multiple: true });
+  fi.onchange = async () => { for (const f of fi.files) await addBlock({ type: 'image', data: await toJpeg(f) }); fi.value = ''; };
+  const fx = h('input', { type: 'file', accept: '.xlsx,.xls,.csv', hidden: true });
+  fx.onchange = async () => { if (fx.files[0]) await addExcel(fx.files[0]); fx.value = ''; };
+  m.append(h('div', { class: 'add' },
+    h('button', { class: 'pri', onclick: () => addBlock({ type: 'text', value: '' }) }, '＋ Metin'),
+    h('button', { onclick: () => fi.click() }, '＋ Resim'),
+    h('button', { onclick: () => fx.click() }, '＋ Excel'),
+    h('button', { onclick: () => addBlock({ type: 'tasks', items: [{ t: '', d: false }] }) }, '☑ Görev listesi'), fi, fx));
+}
+
+function renderBlock(b, i) {
+  const tools = h('div', { class: 'tools' },
+    h('button', { onclick: () => moveBlock(i, -1) }, '↑'),
+    h('button', { onclick: () => moveBlock(i, 1) }, '↓'),
+    h('button', { onclick: async () => { if (!confirm('Blok silinsin mi?')) return; await deleteDoc(bDoc(cur.id, b.id)); blocks.splice(i, 1); renderEditor(); syncStats(); } }, '🗑'));
+  const w = h('div', { class: 'block' }, tools);
+
+  if (b.type === 'text') {
+    const ta = h('textarea', { value: b.value || '', placeholder: 'Yaz…' });
+    const fit = () => { ta.style.height = 'auto'; ta.style.height = ta.scrollHeight + 'px'; };
+    const save = debounce(() => updateDoc(bDoc(cur.id, b.id), { value: ta.value }), 600);
+    ta.oninput = () => { fit(); save(); };
+    w.append(ta); setTimeout(fit, 0);
+  } else if (b.type === 'image') {
+    w.append(h('img', { src: b.data }));
+  } else if (b.type === 'tasks') {
+    b.items = b.items || [];
+    const list = h('div', { class: 'tl' });
+    const persist = async () => { await updateDoc(bDoc(cur.id, b.id), { items: b.items }); syncStats(); };
+    const persistSoon = debounce(persist, 500);
+    const draw = focusIdx => {
+      list.replaceChildren();
+      b.items.forEach((it, k) => {
+        const cb = h('input', { type: 'checkbox', checked: !!it.d });
+        const tx = h('input', { type: 'text', class: 'tt' + (it.d ? ' done' : ''), value: it.t || '', placeholder: 'Görev…' });
+        cb.onchange = () => { it.d = cb.checked; tx.classList.toggle('done', it.d); persist(); };
+        tx.oninput = () => { it.t = tx.value; persistSoon(); };
+        tx.onkeydown = e => { if (e.key === 'Enter') { b.items.splice(k + 1, 0, { t: '', d: false }); draw(k + 1); } };
+        const x = h('button', { title: 'Görevi sil', onclick: () => { b.items.splice(k, 1); draw(); persist(); } }, '✕');
+        list.append(h('div', { class: 'ti' }, cb, tx, x));
+        if (focusIdx === k) setTimeout(() => tx.focus(), 0);
+      });
+    };
+    draw();
+    w.append(list, h('button', { onclick: () => { b.items.push({ t: '', d: false }); draw(b.items.length - 1); } }, '＋ Görev'));
+  } else if (b.type === 'excel') {
+    const data = JSON.parse(b.json), names = Object.keys(data);
+    const box = h('div', { class: 'xl' });
+    if (b.w) box.style.width = b.w + 'px';
+    if (b.h) box.style.height = b.h + 'px';
+    const draw = n => {
+      box.replaceChildren(h('table', {}, data[n].map(r => h('tr', {}, r.map(c => h('td', {}, String(c)))))));
+    };
+    if (names.length > 1) {
+      const s = h('select', { style: 'width:auto;margin-bottom:6px' }, names.map(n => h('option', {}, n)));
+      s.onchange = () => draw(s.value); w.append(s);
+    }
+    draw(names[0]); w.append(box);
+    let first = true;
+    const saveSize = debounce(() => updateDoc(bDoc(cur.id, b.id), { w: Math.round(box.offsetWidth), h: Math.round(box.offsetHeight) }), 700);
+    new ResizeObserver(() => { if (first) { first = false; return; } saveSize(); }).observe(box);
+  }
+  return w;
+}
+
+function syncStats() {
+  let tTotal = 0, tDone = 0;
+  blocks.forEach(b => { if (b.type === 'tasks') (b.items || []).forEach(i => { if ((i.t || '').trim()) { tTotal++; if (i.d) tDone++; } }); });
+  return updateDoc(eDoc(cur.id), { tTotal, tDone });
+}
+
+async function addBlock(data) {
+  const order = Date.now();
+  const r = await addDoc(bCol(cur.id), { ...data, order });
+  blocks.push({ id: r.id, ...data, order }); renderEditor();
+  window.scrollTo(0, document.body.scrollHeight);
+}
+
+async function moveBlock(i, d) {
+  const j = i + d; if (j < 0 || j >= blocks.length) return;
+  const a = blocks[i], b = blocks[j];
+  const bt = writeBatch(db);
+  bt.update(bDoc(cur.id, a.id), { order: b.order }); bt.update(bDoc(cur.id, b.id), { order: a.order });
+  await bt.commit();
+  [a.order, b.order] = [b.order, a.order]; blocks.sort((x, y) => x.order - y.order); renderEditor();
+}
+
+/* ---------- Resim / Excel işleme ---------- */
+async function toJpeg(file, max = 1000) {
+  const bmp = await createImageBitmap(file);
+  const s = Math.min(1, max / Math.max(bmp.width, bmp.height));
+  const c = document.createElement('canvas'); c.width = Math.round(bmp.width * s); c.height = Math.round(bmp.height * s);
+  c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height);
+  let q = .78, d = c.toDataURL('image/jpeg', q);
+  while (d.length > 900000 && q > .3) { q -= .1; d = c.toDataURL('image/jpeg', q); }
+  return d;
+}
+
+async function addExcel(file) {
+  try {
+    const wb = XLSX.read(await file.arrayBuffer(), { cellDates: true });
+    const sheets = {};
+    wb.SheetNames.forEach(n => { sheets[n] = XLSX.utils.sheet_to_json(wb.Sheets[n], { header: 1, defval: '', raw: false }); });
+    const json = JSON.stringify(sheets);
+    if (json.length > 900000) return alert('Excel çok büyük (≈900 KB sınırı). Sayfayı küçültüp tekrar dene.');
+    await addBlock({ type: 'excel', name: file.name, json });
+  } catch (e) { alert('Excel okunamadı: ' + e.message); }
+}
+</script>
+</body>
+</html>
