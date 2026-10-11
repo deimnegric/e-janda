@@ -79,9 +79,26 @@ input,select,textarea{background:var(--card);border:1px solid var(--line);border
 .ti .tt:focus{background:var(--bg)}
 .ti .tt.done{text-decoration:line-through;color:var(--mut)}
 .ti button{border:none;background:none;padding:2px 6px;color:var(--mut)}
-.xl{resize:both;overflow:auto;max-width:100%;min-width:140px;min-height:90px;height:260px;border:1px solid var(--line);border-radius:8px}
+.ti .xb{visibility:hidden}
+.ti.act .xb{visibility:visible}
+.xl{resize:both;overflow:auto;max-width:100%;min-width:140px;min-height:90px;border:1px solid var(--line);border-radius:8px}
+.xl.dflt{max-height:320px}
 .xl table{border-collapse:collapse;font-size:13px;white-space:nowrap}
-.xl td{border:1px solid var(--line);padding:3px 8px}
+.xl td{border:1px solid var(--line);padding:3px 8px;min-width:60px;height:28px;cursor:text}
+.xl td .ce{border:1px solid var(--acc);border-radius:4px;padding:2px 6px;background:var(--bg)}
+.xtools{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.xtools button{padding:2px 8px;font-size:13px;color:var(--mut)}
+.xmenu{flex-basis:100%;display:flex;gap:8px}
+.dh{font-weight:800;margin-bottom:8px}
+.dh small{font-weight:400;color:var(--mut)}
+.dscroll{overflow:auto;max-width:100%}
+.dt{border-collapse:collapse}
+.dt td{padding:0;border:1px solid var(--line)}
+.dt input{border:none;border-radius:0;background:transparent;width:130px;padding:6px 8px}
+.dt tr:first-child input{font-weight:800}
+.dt input:focus{outline:1px solid var(--acc);background:var(--bg)}
+.dctl{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
+.dctl .sp{flex:1}
 .xl tr:first-child td{position:sticky;top:0;background:var(--card);font-weight:600}
 .add{display:flex;gap:8px;flex-wrap:wrap;margin:16px 0 60px}
 
@@ -446,11 +463,15 @@ function renderEditor() {
   fi.onchange = async () => { for (const f of fi.files) await addBlock({ type: 'image', data: await toJpeg(f) }); fi.value = ''; };
   const fx = h('input', { type: 'file', accept: '.xlsx,.xls,.csv', hidden: true });
   fx.onchange = async () => { if (fx.files[0]) await addExcel(fx.files[0]); fx.value = ''; };
+  const xm = h('div', { class: 'xmenu', hidden: true },
+    h('button', { onclick: () => { xm.hidden = true; startDraft(); } }, 'yeni tablo oluştur'),
+    h('button', { onclick: () => { xm.hidden = true; fx.click(); } }, 'dosyadan aktar'));
+  if (draft && draft.eid === cur.id) { draftEl = buildDraft(); m.append(draftEl); } else draftEl = null;
   m.append(h('div', { class: 'add' },
     h('button', { class: 'pri', onclick: () => addBlock({ type: 'text', value: '', html: '' }) }, '＋ metin'),
     h('button', { onclick: () => fi.click() }, '＋ resim'),
-    h('button', { onclick: () => fx.click() }, '＋ excel'),
-    h('button', { onclick: () => addBlock({ type: 'tasks', items: [{ t: '', h: '', d: false }] }) }, '☑ görev listesi'), fi, fx));
+    h('button', { onclick: () => { xm.hidden = !xm.hidden; } }, '＋ excel'),
+    h('button', { onclick: () => addBlock({ type: 'tasks', items: [{ t: '', h: '', d: false }] }) }, '☑ görev listesi'), fi, fx, xm));
 }
 
 function renderBlock(b, i) {
@@ -482,31 +503,151 @@ function renderBlock(b, i) {
         cb.onchange = () => { it.d = cb.checked; ed.classList.toggle('done', it.d); persist(); };
         ed.addEventListener('input', () => { const r = readRich(ed); it.t = r.value; it.h = r.html; persistSoon(); });
         ed.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); b.items.splice(k + 1, 0, { t: '', h: '', d: false }); draw(k + 1); } });
-        const x = h('button', { title: 'görevi sil', onclick: () => { b.items.splice(k, 1); draw(); persist(); } }, '✕');
-        list.append(h('div', { class: 'ti' }, cb, ed, x));
+        const x = h('button', { class: 'xb', title: 'görevi sil', onclick: () => { b.items.splice(k, 1); draw(); persist(); } }, '✕');
+        x.addEventListener('mousedown', e => e.preventDefault());
+        const row = h('div', { class: 'ti' }, cb, ed, x);
+        // keep gibi: çarpı sadece görevin üstüne tıklayınca görünür
+        row.addEventListener('focusin', () => row.classList.add('act'));
+        row.addEventListener('focusout', e => {
+          if (!row.contains(e.relatedTarget)) setTimeout(() => { if (!row.contains(document.activeElement)) row.classList.remove('act'); }, 200);
+        });
+        list.append(row);
         if (focusIdx === k) setTimeout(() => ed.focus(), 0);
       });
     };
     draw();
     w.append(list, h('button', { onclick: () => { b.items.push({ t: '', h: '', d: false }); draw(b.items.length - 1); } }, '＋ görev'));
   } else if (b.type === 'excel') {
-    const data = JSON.parse(b.json), names = Object.keys(data);
+    let data; try { data = JSON.parse(b.json); } catch (_) { data = { tablo: [['']] }; }
+    const names = Object.keys(data); let sheet = names[0];
     const box = h('div', { class: 'xl' });
     if (b.w) box.style.width = b.w + 'px';
-    if (b.h) box.style.height = b.h + 'px';
-    const draw = n => {
-      box.replaceChildren(h('table', {}, data[n].map(r => h('tr', {}, r.map(c => h('td', {}, String(c)))))));
+    if (b.h) box.style.height = b.h + 'px'; else box.classList.add('dflt');
+    const ncols = () => Math.max(1, ...data[sheet].map(r => r.length));
+    const save = async () => {
+      const j = JSON.stringify(data);
+      if (j.length > 900000) { alert('tablo boyut sınırını aştı (≈900 kb).'); return false; }
+      b.json = j; await updateDoc(bDoc(cur.id, b.id), { json: j }); return true;
+    };
+    // hücreye tıklayınca düzenlenir, dışarı tıklayınca / enter ile kaydolur
+    const edit = (td, ri, ci) => {
+      if (td.firstElementChild) return;
+      const row = data[sheet][ri], old = String(row[ci] ?? '');
+      const inp = h('input', { class: 'ce', value: old });
+      inp.style.width = Math.max(td.offsetWidth, 100) + 'px';
+      td.replaceChildren(inp); inp.focus(); inp.select();
+      let done = false;
+      const fin = async (ok, next) => {
+        if (done) return; done = true;
+        let v = old;
+        if (ok) {
+          v = lc(inp.value.trim());
+          if (v !== old) { while (row.length <= ci) row.push(''); row[ci] = v; if (!(await save())) { row[ci] = old; v = old; } }
+        }
+        td.textContent = v;
+        if (next) { const nx = td.nextElementSibling || (td.parentElement.nextElementSibling && td.parentElement.nextElementSibling.firstElementChild); if (nx) nx.click(); }
+      };
+      inp.onkeydown = e => {
+        if (e.key === 'Enter') { e.preventDefault(); fin(true); }
+        else if (e.key === 'Escape') fin(false);
+        else if (e.key === 'Tab') { e.preventDefault(); fin(true, true); }
+      };
+      inp.onblur = () => fin(true);
+    };
+    const draw = () => {
+      const n = ncols(), tbl = h('table');
+      data[sheet].forEach((r, ri) => {
+        const tr = h('tr');
+        for (let ci = 0; ci < n; ci++) {
+          const td = h('td', {}, String(r[ci] ?? ''));
+          td.onclick = () => edit(td, ri, ci);
+          tr.append(td);
+        }
+        tbl.append(tr);
+      });
+      box.replaceChildren(tbl);
     };
     if (names.length > 1) {
       const s = h('select', { style: 'width:auto;margin-bottom:6px' }, names.map(n => h('option', {}, n)));
-      s.onchange = () => draw(s.value); w.append(s);
+      s.onchange = () => { sheet = s.value; draw(); }; w.append(s);
     }
-    draw(names[0]); w.append(box);
-    let first = true;
-    const saveSize = debounce(() => updateDoc(bDoc(cur.id, b.id), { w: Math.round(box.offsetWidth), h: Math.round(box.offsetHeight) }), 700);
-    new ResizeObserver(() => { if (first) { first = false; return; } saveSize(); }).observe(box);
+    draw(); w.append(box);
+    const addRow = async () => { data[sheet].push(Array(ncols()).fill('')); await save(); draw(); };
+    const delRow = async () => {
+      const rows = data[sheet]; if (rows.length <= 1) return;
+      if (rows[rows.length - 1].some(c => String(c).trim()) && !confirm('son satır silinsin mi?')) return;
+      rows.pop(); await save(); draw();
+    };
+    const addCol = async () => { const n = ncols(); data[sheet].forEach(r => { while (r.length < n) r.push(''); r.push(''); }); await save(); draw(); };
+    const delCol = async () => {
+      const n = ncols(); if (n <= 1) return;
+      if (data[sheet].some(r => String(r[n - 1] ?? '').trim()) && !confirm('son sütun silinsin mi?')) return;
+      data[sheet].forEach(r => { r.length = Math.min(r.length, n - 1); }); await save(); draw();
+    };
+    w.append(h('div', { class: 'xtools' },
+      h('button', { onclick: addRow }, '＋ satır'), h('button', { onclick: delRow }, '− satır'),
+      h('button', { onclick: addCol }, '＋ sütun'), h('button', { onclick: delCol }, '− sütun')));
+    // boyutlandırma: sürükleyince kaydedilir
+    const saveSize = debounce(() => updateDoc(bDoc(cur.id, b.id), { w: b.w, h: b.h }), 500);
+    box.addEventListener('pointerup', () => {
+      if (!box.style.height && !box.style.width) return;
+      const nw = box.style.width ? Math.round(box.offsetWidth) : null, nh = box.style.height ? Math.round(box.offsetHeight) : null;
+      if (nw === (b.w || null) && nh === (b.h || null)) return;
+      b.w = nw; b.h = nh; box.classList.remove('dflt'); saveSize();
+    });
   }
   return w;
+}
+
+/* ---------- yeni tablo taslağı: yaz, sonra "ekle" ile sayfaya yükle ---------- */
+let draft = null, draftEl = null;
+function startDraft() {
+  if (!draft || draft.eid !== cur.id) draft = { eid: cur.id, rows: Array.from({ length: 4 }, () => ['', '', '']), focus: [0, 0] };
+  renderEditor();
+  if (draftEl) draftEl.scrollIntoView({ block: 'center' });
+}
+function refreshDraft() { const n = buildDraft(); if (draftEl && draftEl.isConnected) draftEl.replaceWith(n); draftEl = n; }
+function buildDraft() {
+  const d = draft, grid = [];
+  const tbl = h('table', { class: 'dt' });
+  d.rows.forEach((r, ri) => {
+    const tr = h('tr'); grid[ri] = [];
+    r.forEach((v, ci) => {
+      const inp = h('input', { value: v, placeholder: ri === 0 ? 'başlık' : '' });
+      inp.oninput = () => { d.rows[ri][ci] = inp.value; };
+      inp.onkeydown = e => {
+        if (e.key !== 'Enter') return;
+        e.preventDefault();
+        if (ri === d.rows.length - 1) { d.rows.push(Array(r.length).fill('')); d.focus = [ri + 1, ci]; refreshDraft(); }
+        else grid[ri + 1][ci].focus();
+      };
+      grid[ri][ci] = inp; tr.append(h('td', {}, inp));
+    });
+    tbl.append(tr);
+  });
+  const el = h('div', { class: 'block' },
+    h('div', { class: 'dh' }, 'yeni tablo ', h('small', {}, '· ilk satır başlık olur. yazıp bitirince "ekle"ye bas')),
+    h('div', { class: 'dscroll' }, tbl),
+    h('div', { class: 'dctl' },
+      h('button', { onclick: () => { d.rows.push(Array(d.rows[0].length).fill('')); refreshDraft(); } }, '＋ satır'),
+      h('button', { onclick: () => { if (d.rows.length > 1) { d.rows.pop(); refreshDraft(); } } }, '− satır'),
+      h('button', { onclick: () => { d.rows.forEach(r => r.push('')); refreshDraft(); } }, '＋ sütun'),
+      h('button', { onclick: () => { if (d.rows[0].length > 1) { d.rows.forEach(r => r.pop()); refreshDraft(); } } }, '− sütun'),
+      h('span', { class: 'sp' }),
+      h('button', { onclick: () => { draft = null; draftEl = null; el.remove(); } }, 'vazgeç'),
+      h('button', { class: 'pri', onclick: commitDraft }, 'ekle')));
+  if (d.focus) { const [fr, fc] = d.focus; d.focus = null; setTimeout(() => grid[fr] && grid[fr][fc] && grid[fr][fc].focus(), 0); }
+  return el;
+}
+async function commitDraft() {
+  const rows = draft.rows.map(r => r.map(c => lc(String(c).trim())));
+  while (rows.length && rows[rows.length - 1].every(c => !c)) rows.pop();
+  if (!rows.length) return alert('tablo boş, önce bir şeyler yaz.');
+  let cols = Math.max(...rows.map(r => r.length));
+  while (cols > 0 && rows.every(r => !r[cols - 1])) cols--;
+  const out = rows.map(r => Array.from({ length: cols }, (_, i) => r[i] || ''));
+  draft = null; draftEl = null;
+  await addBlock({ type: 'excel', name: 'tablo', json: JSON.stringify({ tablo: out }) });
 }
 
 function syncStats() {
