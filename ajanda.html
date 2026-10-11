@@ -877,5 +877,110 @@ $('#sx').onclick = closeSearch;
 $('#q').oninput = runSearch;
 document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('#search').hidden) closeSearch(); });
 </script>
+    <!-- Arka plan canvas elementi -->
+    <canvas id="background-canvas"></canvas>
+
+    <script>
+        const canvas = document.getElementById('background-canvas');
+        const ctx = canvas.getContext('2d');
+
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        // Karakter havuzları
+        const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+        const numbers = "0123456789";
+
+        // Rastgele karakter seçici
+        function getRandomChar(pool) {
+            return pool.charAt(Math.floor(Math.random() * pool.length));
+        }
+
+        class FloatingItem {
+            constructor() {
+                this.reset(true);
+            }
+
+            reset(initial = false) {
+                // Konum: İlk başta ekranın herhangi bir yerinde, sonrakilerde alt kenardan başlar
+                this.x = Math.random() * canvas.width;
+                this.y = initial ? Math.random() * canvas.height : canvas.height + 50;
+                
+                // Ortalama yavaş hız (piksel / kare)
+                this.speedY = 0.4 + Math.random() * 0.6; 
+                this.speedX = (Math.random() - 0.5) * 0.4; // Hafif yatay salınım
+
+                this.size = Math.floor(Math.random() * 24) + 28; // Boyut (28px - 52px)
+                this.blur = Math.random() * 6 + 4; // Bulanıklık derecesi (4px - 10px)
+                this.opacity = Math.random() * 0.25 + 0.15; // Şeffaflık (0.15 - 0.40)
+
+                // Her seferinde yeni karakter belirleme
+                this.updateContent();
+                
+                // Karakterlerin kendi içinde periyodik olarak değişmesi için zamanlayıcı
+                this.changeTimer = 0;
+                this.changeInterval = Math.floor(Math.random() * 150) + 100; // Her 100-250 karede bir değişir
+            }
+
+            updateContent() {
+                // Rastgele bir karakter (harf veya rakam) seç
+                const useLetter = Math.random() < 0.6; // %60 ihtimalle harf, %40 ihtimalle rakam
+                this.char = useLetter ? getRandomChar(letters) : getRandomChar(numbers);
+            }
+
+            update() {
+                this.y -= this.speedY;
+                this.x += this.speedX;
+
+                // Periyodik karakter değişimi
+                this.changeTimer++;
+                if (this.changeTimer >= this.changeInterval) {
+                    this.updateContent();
+                    this.changeTimer = 0;
+                }
+
+                // Ekran üst sınırını geçtiğinde aşağıdan tekrar başlat
+                if (this.y < -50) {
+                    this.reset(false);
+                }
+            }
+
+            draw() {
+                ctx.save();
+                // Bulanıklık efekti
+                ctx.filter = `blur(${this.blur}px)`;
+                ctx.font = `${this.size}px sans-serif`;
+                ctx.fillStyle = `rgba(255, 255, 255, ${this.opacity})`;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(this.char, this.x, this.y);
+                ctx.restore();
+            }
+        }
+
+        // Toplamda 9 adet (yaklaşık 5-6 harf ve 3-4 rakam dengesinde) nesne oluşturuyoruz
+        const totalItemsCount = 9; 
+        const items = [];
+        for (let i = 0; i < totalItemsCount; i++) {
+            items.push(new FloatingItem());
+        }
+
+        function animate() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            items.forEach(item => {
+                item.update();
+                item.draw();
+            });
+
+            requestAnimationFrame(animate);
+        }
+
+        animate();
+    </script>
 </body>
 </html>
